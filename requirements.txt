@@ -1,0 +1,20 @@
+# Core
+torch>=2.0.0
+torchvision>=0.15.0
+numpy>=1.24.0
+Pillow>=9.0.0
+PyYAML>=6.0
+
+# Scientific / image processing
+scipy>=1.10.0
+scikit-image>=0.21.0   # for SSIM
+
+# SAR / geospatial (optional but recommended for .tif support)
+rasterio>=1.3.0        # GeoTIFF I/O
+tifffile>=2023.1.1     # Fallback TIFF reader
+
+# Hyperparameter tuning (optional)
+optuna>=3.3.0
+
+# Logging / progress
+tqdm>=4.65.0

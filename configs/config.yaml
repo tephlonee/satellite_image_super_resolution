@@ -1,0 +1,107 @@
+# =============================================================================
+# SAR Super-Resolution Configuration
+# =============================================================================
+
+# --- Data ---
+data:
+  image_dir: "batch_downloads"          # Directory containing SAR images (.tif/.png)
+  scale_factor: 4                   # Upscaling factor (2, 4, or 8)
+  patch_size: 64                    # HR patch size for training
+  stride: 32                        # Stride for patch extraction
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+  num_workers: 4
+  pin_memory: true
+
+# --- SAR Preprocessing ---
+preprocessing:
+  log_transform: true               # Apply log1p transform to reduce speckle dynamic range
+  normalize: true                   # Normalize to [0, 1] after log transform
+  speckle_filter:
+    enabled: false                  # Toggle speckle filtering
+    method: "lee"                   # Options: "lee", "frost", "median"
+    kernel_size: 3                  # Filter kernel size (odd number)
+    looks: 1                        # Number of looks (for Lee filter)
+
+# --- Augmentation ---
+augmentation:
+  enabled: true
+  horizontal_flip: true
+  vertical_flip: true
+  rotation: true                    # 90/180/270 random rotation
+  random_crop: true
+
+# --- SRCNN Model ---
+srcnn:
+  n_channels: 1                     # Grayscale SAR
+  n_feats: 64
+  n_layers: 8
+  kernel_sizes: [9, 5, 5]           # Classic SRCNN kernel progression
+
+# --- GAN Model ---
+gan:
+  n_channels: 1
+  n_feats: 64
+  n_res_blocks: 8                   # Residual blocks in generator
+  discriminator_feats: 64
+
+# --- Training: SRCNN ---
+train_srcnn:
+  epochs: 200
+  batch_size: 16
+  learning_rate: 1.0e-4
+  weight_decay: 1.0e-4
+  loss: "l1"                        # Options: "mse", "l1"
+  tv_loss_weight: 0.0               # Set > 0 to enable TV loss (e.g., 1e-6)
+  early_stopping:
+    enabled: true
+    patience: 20
+    min_delta: 1.0e-5
+  checkpoint_dir: "checkpoints/srcnn"
+  log_interval: 10                  # Log every N epochs
+  save_best_only: true
+
+# --- Training: GAN ---
+train_gan:
+  epochs: 300
+  batch_size: 8
+  g_learning_rate: 1.0e-4
+  d_learning_rate: 1.0e-4
+  weight_decay: 1.0e-4
+  # Loss weights
+  pixel_loss_weight: 1.0            # L1 content loss (dominant for SAR)
+  adversarial_loss_weight: 0.01     # Low adversarial weight to avoid hallucinations
+  tv_loss_weight: 1.0e-6            # Optional TV loss
+  # Warmup: train generator only before enabling discriminator
+  warmup_epochs: 10
+  early_stopping:
+    enabled: true
+    patience: 30
+    min_delta: 1.0e-5
+  checkpoint_dir: "checkpoints/gan"
+  log_interval: 10
+  save_best_only: true
+
+# --- Evaluation ---
+evaluation:
+  metrics: ["psnr", "ssim"]
+  output_dir: "results"
+
+# --- Device ---
+device: "auto"                      # "auto", "cuda", "cpu"
+
+# --- Tuning (Optuna) ---
+tuning:
+  n_trials: 50
+  timeout: 3600                     # Seconds
+  study_name: "sar_sr_tuning"
+  storage: null                     # e.g., "sqlite:///tuning.db"
+  model: "srcnn"                    # "srcnn" or "gan"
+  search_space:
+    learning_rate: [1.0e-5, 1.0e-3]
+    weight_decay: [1.0e-5, 1.0e-3]
+    batch_size: [8, 16, 32]
+    n_feats: [32, 64, 128]
+    n_layers: [4, 6, 8, 10]
+    patch_size: [32, 64, 96]
