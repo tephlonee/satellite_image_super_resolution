@@ -16,10 +16,10 @@ data:
 
 # --- SAR Preprocessing ---
 preprocessing:
-  log_transform: true               # Apply log1p transform to reduce speckle dynamic range
+  log_transform: false             # Apply log1p transform to reduce speckle dynamic range
   normalize: true                   # Normalize to [0, 1] after log transform
   speckle_filter:
-    enabled: false                  # Toggle speckle filtering
+    enabled: true                  # Toggle speckle filtering
     method: "lee"                   # Options: "lee", "frost", "median"
     kernel_size: 3                  # Filter kernel size (odd number)
     looks: 1                        # Number of looks (for Lee filter)
@@ -36,7 +36,7 @@ augmentation:
 srcnn:
   n_channels: 1                     # Grayscale SAR
   n_feats: 64
-  n_layers: 8
+  n_layers: 12
   kernel_sizes: [9, 5, 5]           # Classic SRCNN kernel progression
 
 # --- GAN Model ---

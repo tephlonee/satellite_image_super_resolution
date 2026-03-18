@@ -42,9 +42,13 @@ def log_transform(image: np.ndarray, eps: float = 1e-6) -> np.ndarray:
         Log-transformed array with same shape
     """
     image = np.asarray(image, dtype=np.float32)
+
+    """
     if np.any(image < 0):
         warnings.warn("Negative values found; clipping to 0 before log transform.")
         image = np.clip(image, 0, None)
+
+    """
     return np.log1p(image + eps)
 
 

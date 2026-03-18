@@ -65,7 +65,7 @@ def load_checkpoint(
         raise FileNotFoundError(f"Checkpoint not found: {path}")
 
     map_location = device or torch.device("cpu")
-    checkpoint = torch.load(path, map_location=map_location)
+    checkpoint = torch.load(path, map_location=map_location, weights_only=False)
 
     model.load_state_dict(checkpoint["model_state_dict"])
     logger.info(f"Model weights loaded from {path} (epoch {checkpoint.get('epoch', '?')})")

@@ -46,17 +46,10 @@ except ImportError:
 # Image I/O
 # ---------------------------------------------------------------------------
 
-def load_image(path: str) -> np.ndarray:
+def load_image(path: str, window: tuple = None) -> np.ndarray:
     """
     Load a SAR image as a 2-D float32 numpy array.
-
-    Tries rasterio (best for GeoTIFF), then tifffile, then PIL.
-
-    Args:
-        path: Path to image file
-
-    Returns:
-        2-D float32 numpy array (single band)
+    Optionally load only a window (y, x, height, width).
     """
     path = str(path)
     ext = Path(path).suffix.lower()
@@ -64,8 +57,12 @@ def load_image(path: str) -> np.ndarray:
     if ext in (".tif", ".tiff"):
         if RASTERIO_AVAILABLE:
             with rasterio.open(path) as src:
-                img = src.read(1).astype(np.float32)
-            return img
+                if window is not None:
+                    y, x, h, w = window
+                    arr = src.read(1, window=rasterio.windows.Window(x, y, w, h)).astype(np.float32)
+                else:
+                    arr = src.read(1).astype(np.float32)
+            return arr
         if TIFFFILE_AVAILABLE:
             img = tifffile.imread(path)
             if img.ndim == 3:
@@ -149,30 +146,34 @@ class SARDataset(Dataset):
         return len(self.image_paths) * 50
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        # Pick a random image
         img_idx = idx % len(self.image_paths)
         path = self.image_paths[img_idx]
-        raw = load_image(path)
-
-        # Random crop
-        h, w = raw.shape
+        ext = Path(path).suffix.lower()
+        # Patch size in HR
         ps = self.patch_size * self.scale
-        if h < ps or w < ps:
-            raise ValueError(f"Image {path} too small for patch size {ps}")
-        y = np.random.randint(0, h - ps + 1)
-        x = np.random.randint(0, w - ps + 1)
-        hr_patch = raw[y:y+ps, x:x+ps]
-
+        if ext in (".tif", ".tiff") and RASTERIO_AVAILABLE:
+            with rasterio.open(path) as src:
+                h, w = src.height, src.width
+                if h < ps or w < ps:
+                    raise ValueError(f"Image {path} too small for patch size {ps}")
+                y = np.random.randint(0, h - ps + 1)
+                x = np.random.randint(0, w - ps + 1)
+                hr_patch = src.read(1, window=rasterio.windows.Window(x, y, ps, ps)).astype(np.float32)
+        else:
+            raw = load_image(path)
+            h, w = raw.shape
+            if h < ps or w < ps:
+                raise ValueError(f"Image {path} too small for patch size {ps}")
+            y = np.random.randint(0, h - ps + 1)
+            x = np.random.randint(0, w - ps + 1)
+            hr_patch = raw[y:y+ps, x:x+ps]
         # Generate LR patch
         lr_patch = generate_lr(hr_patch, self.scale)
-
         # Preprocess
         hr_patch = self.preprocessor(hr_patch)
         lr_patch = self.preprocessor(lr_patch)
-
         # Augment
         lr_patch, hr_patch = self.augmentation(lr_patch, hr_patch, hr_patch_size=self.patch_size)
-
         # Convert to tensors (C=1)
         return to_tensor(lr_patch), to_tensor(hr_patch)
 

@@ -192,11 +192,11 @@ def main():
     preprocessor = SARPreprocessor(cfg.preprocessing)
 
     # Collect input images
-    extensions = {".tif", ".tiff", ".png", ".jpg"}
+    extensions = {".tif"}
     if args.input_dir:
         input_paths = sorted(
             p for p in Path(args.input_dir).iterdir()
-            if p.suffix.lower() in extensions
+            if p.suffix.lower() in extensions and "preview" not in p.stem
         )
     elif args.input_path:
         input_paths = [Path(args.input_path)]
