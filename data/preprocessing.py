@@ -16,6 +16,8 @@ import numpy as np
 from typing import Optional
 import warnings
 
+
+
 try:
     from scipy.ndimage import uniform_filter, median_filter
     SCIPY_AVAILABLE = True
@@ -23,6 +25,9 @@ except ImportError:
     SCIPY_AVAILABLE = False
     warnings.warn("scipy not available; Lee/Frost filters will fall back to median.")
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Log Transform
@@ -49,7 +54,7 @@ def log_transform(image: np.ndarray, eps: float = 1e-6) -> np.ndarray:
         image = np.clip(image, 0, None)
 
     """
-    return np.log1p(image + eps)
+    return np.log1p(np.abs(image))
 
 
 def inverse_log_transform(image: np.ndarray, eps: float = 1e-6) -> np.ndarray:
@@ -97,6 +102,29 @@ def normalize(
 def denormalize(image: np.ndarray, min_val: float, max_val: float) -> np.ndarray:
     """Invert [0, 1] normalization."""
     return np.asarray(image, dtype=np.float32) * (max_val - min_val) + min_val
+
+
+def add_speckle_noise(img, L=1.0):
+    """
+    Apply multiplicative speckle noise to SAR image.
+
+    Args:
+        img (torch.Tensor): Image in linear scale [0, 1] or positive float
+                            Shape: (C, H, W) or (H, W)
+        L (float): Number of looks (controls noise level)
+
+    Returns:
+        torch.Tensor: Noisy image
+    """
+    if not torch.is_tensor(img):
+        raise TypeError("Input must be a torch.Tensor")
+
+    # Gamma noise with mean = 1, variance = 1/L
+    noise = torch.distributions.Gamma(L, L).sample(img.shape).to(img.device)
+
+    noisy_img = img * noise
+
+    return noisy_img
 
 
 # ---------------------------------------------------------------------------
@@ -253,6 +281,7 @@ class SARPreprocessor:
     def __init__(self, cfg):
         self.log_transform = cfg.get("log_transform", True)
         self.normalize = cfg.get("normalize", True)
+        self.speckle_noise = cfg.get("speckle_noise", False)
         speckle_cfg = cfg.get("speckle_filter", {}) or {}
         self.speckle_enabled = speckle_cfg.get("enabled", False)
         self.speckle_method = speckle_cfg.get("method", "lee")
@@ -283,8 +312,13 @@ class SARPreprocessor:
         """
         img = np.asarray(image, dtype=np.float32)
 
+        if self.speckle_noise and not self.speckle_enabled:
+            
+            img = add_speckle_noise(img)
+
         # Optional speckle filter (apply BEFORE log transform for multiplicative model)
-        if self.speckle_enabled:
+        if self.speckle_enabled and not self.speckle_noise:
+            
             img = apply_speckle_filter(
                 img,
                 method=self.speckle_method,

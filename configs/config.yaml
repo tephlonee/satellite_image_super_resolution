@@ -16,7 +16,7 @@ data:
 
 # --- SAR Preprocessing ---
 preprocessing:
-  log_transform: false             # Apply log1p transform to reduce speckle dynamic range
+  log_transform: true             # Apply log1p transform to reduce speckle dynamic range
   normalize: true                   # Normalize to [0, 1] after log transform
   speckle_filter:
     enabled: true                  # Toggle speckle filtering

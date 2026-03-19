@@ -236,11 +236,21 @@ def build_dataloaders(cfg, seed: int = 42):
         seed=seed,
     )
 
+    high_image_quality = None
+
     # Fit preprocessor on downsampled training images only
     preprocessor = SARPreprocessor(cfg.preprocessing)
     raw_train = []
     if RASTERIO_AVAILABLE:
         for p in train_paths:
+            if high_image_quality is None:
+
+                size_mb = Path(p).stat().st_size / (1024 * 1024)
+
+                print(f"Checking image quality for {p} (size: {size_mb:.2f} MB)")
+
+                if size_mb > 500:
+                    high_image_quality = True
             with rasterio.open(p) as src:
                 # Target ~1024px on longest side
                 longest = max(src.height, src.width)
@@ -257,11 +267,24 @@ def build_dataloaders(cfg, seed: int = 42):
             scale = max(1, longest // 1024)
             small = np.array(Image.fromarray(arr).resize((arr.shape[1]//scale, arr.shape[0]//scale)), dtype=np.float32)
             raw_train.append(small)
+
+    if high_image_quality:
+        cfg.speckle_noise = True
+
     preprocessor.fit(raw_train)
 
+    if high_image_quality:
+        logger.info("High image quality detected; enabling speckle noise.")
+
+    else:
+        logger.info("Image quality appears low; speckle noise will not be added.")
+
+    
     train_ds = SARDataset(train_paths, cfg, augment=True, preprocessor=preprocessor)
     val_ds = SARDataset(val_paths, cfg, augment=False, preprocessor=preprocessor)
     test_ds = SARDataset(test_paths, cfg, augment=False, preprocessor=preprocessor)
+
+
 
     loader_kwargs = dict(
         batch_size=cfg.train_srcnn.batch_size,

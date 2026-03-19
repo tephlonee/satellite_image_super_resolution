@@ -4,6 +4,8 @@ torchvision>=0.15.0
 numpy>=1.24.0
 Pillow>=9.0.0
 PyYAML>=6.0
+pystac
+stac-asset[cli]
 
 # Scientific / image processing
 scipy>=1.10.0
@@ -18,3 +20,5 @@ optuna>=3.3.0
 
 # Logging / progress
 tqdm>=4.65.0
+
+
