@@ -6,7 +6,7 @@
 data:
   image_dir: "batch_downloads"          # Directory containing SAR images (.tif/.png)
   scale_factor: 4                   # Upscaling factor (2, 4, or 8)
-  patch_size: 64                    # HR patch size for training
+  patch_size: 256                    # HR patch size for training
   stride: 32                        # Stride for patch extraction
   train_ratio: 0.7
   val_ratio: 0.15
@@ -36,7 +36,7 @@ augmentation:
 srcnn:
   n_channels: 1                     # Grayscale SAR
   n_feats: 64
-  n_layers: 12
+  n_layers: 16
   kernel_sizes: [9, 5, 5]           # Classic SRCNN kernel progression
 
 # --- GAN Model ---
@@ -52,7 +52,7 @@ train_srcnn:
   batch_size: 16
   learning_rate: 1.0e-4
   weight_decay: 1.0e-4
-  loss: "l1"                        # Options: "mse", "l1"
+  loss: "mse"                        # Options: "mse", "l1"
   tv_loss_weight: 0.0               # Set > 0 to enable TV loss (e.g., 1e-6)
   early_stopping:
     enabled: true

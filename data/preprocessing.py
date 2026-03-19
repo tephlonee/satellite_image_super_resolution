@@ -91,11 +91,14 @@ def normalize(
         (normalized_image, min_val, max_val) tuple so inverse can be applied
     """
     image = np.asarray(image, dtype=np.float32)
-    min_val = image.min() if min_val is None else min_val
-    max_val = image.max() if max_val is None else max_val
+    min_val = image.min()  if min_val is None else min_val
+    max_val = image.max()   if max_val is None else max_val
     denom = max_val - min_val
+
+    
     if denom < 1e-8:
         return np.zeros_like(image), min_val, max_val
+
     return (image - min_val) / denom, min_val, max_val
 
 
@@ -296,7 +299,7 @@ class SARPreprocessor:
         """Compute global min/max from a list of images for consistent normalization."""
         all_vals = np.concatenate([np.asarray(im, dtype=np.float32).ravel() for im in images])
         if self.log_transform:
-            all_vals = np.log1p(np.clip(all_vals, 0, None) + 1e-6)
+            all_vals = log_transform(all_vals)
         self.min_val = float(all_vals.min())
         self.max_val = float(all_vals.max())
 
@@ -332,7 +335,7 @@ class SARPreprocessor:
 
         # Normalize
         if self.normalize:
-            img, self.min_val, self.max_val = normalize(img, self.min_val, self.max_val)
+            img, self.min_val, self.max_val = normalize(img , self.min_val, self.max_val)
 
         return img
 

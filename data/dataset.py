@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 from functools import partial
 
+import cv2
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -90,16 +91,38 @@ def generate_lr(hr: np.ndarray, scale: int) -> np.ndarray:
     h, w = hr.shape
     lr_h, lr_w = h // scale, w // scale
 
-    # Normalize to [0, 255] for PIL, then downsample, then restore scale
     hr_min, hr_max = hr.min(), hr.max()
+
+    # Normalize to [0, 255] for PIL, then downsample, then restore scale
+    """
+    
     if hr_max - hr_min < 1e-8:
         return np.zeros((lr_h, lr_w), dtype=np.float32)
-
-    hr_uint8 = ((hr - hr_min) / (hr_max - hr_min) * 255).astype(np.uint8)
-    lr_pil = Image.fromarray(hr_uint8).resize((lr_w, lr_h), Image.BICUBIC)
-    lr_norm = np.array(lr_pil, dtype=np.float32) / 255.0
+"""
+    #hr_uint8 = ((hr - hr_min) / (hr_max - hr_min) * 255).astype(np.uint8)
+    lr_pil = Image.fromarray(hr).resize((lr_w, lr_h), Image.BICUBIC)
+    lr_norm = np.array(lr_pil, dtype=np.float32)
     lr = lr_norm * (hr_max - hr_min) + hr_min
     return lr
+
+
+def generate_lr(hr: np.ndarray, scale: int , patch_size : int) -> np.ndarray:
+    
+    #hr_blur = cv2.GaussianBlur(hr, (5, 5), 1.0)
+
+    lr = cv2.resize(
+        hr,
+        (patch_size // scale, patch_size // scale),
+        interpolation=cv2.INTER_AREA
+    )
+
+    bicubic = cv2.resize(
+        lr,
+        (patch_size, patch_size),
+        interpolation=cv2.INTER_CUBIC
+    )
+
+    return bicubic
 
 
 # ---------------------------------------------------------------------------
@@ -168,7 +191,8 @@ class SARDataset(Dataset):
             x = np.random.randint(0, w - ps + 1)
             hr_patch = raw[y:y+ps, x:x+ps]
         # Generate LR patch
-        lr_patch = generate_lr(hr_patch, self.scale)
+        
+        lr_patch = generate_lr(hr_patch, self.scale , self.patch_size)
         # Preprocess
         hr_patch = self.preprocessor(hr_patch)
         lr_patch = self.preprocessor(lr_patch)
@@ -240,6 +264,8 @@ def build_dataloaders(cfg, seed: int = 42):
 
     # Fit preprocessor on downsampled training images only
     preprocessor = SARPreprocessor(cfg.preprocessing)
+
+    
     raw_train = []
     if RASTERIO_AVAILABLE:
         for p in train_paths:
@@ -267,9 +293,6 @@ def build_dataloaders(cfg, seed: int = 42):
             scale = max(1, longest // 1024)
             small = np.array(Image.fromarray(arr).resize((arr.shape[1]//scale, arr.shape[0]//scale)), dtype=np.float32)
             raw_train.append(small)
-
-    if high_image_quality:
-        cfg.speckle_noise = True
 
     preprocessor.fit(raw_train)
 

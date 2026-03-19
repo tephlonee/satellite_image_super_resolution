@@ -112,8 +112,8 @@ class SRCNNTrainer:
         # Optimizer
         self.optimizer = torch.optim.Adam(
             self.model.parameters(),
-            lr=self.train_cfg.get("learning_rate", 1e-4),
-            weight_decay=self.train_cfg.get("weight_decay", 1e-4),
+            lr=self.train_cfg.get("learning_rate", 1e-2),
+            weight_decay=self.train_cfg.get("weight_decay", 1e-2),
         )
 
         # LR scheduler: Cosine annealing for stable convergence

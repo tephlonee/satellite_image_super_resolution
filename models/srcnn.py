@@ -110,6 +110,9 @@ class SRCNNBaseline(nn.Module):
         out = self.conv3(out)
         return out + x_up  # Global residual
 
+    def n_parameters(self) -> int:
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
 
 # ---------------------------------------------------------------------------
 # Deep SRCNN (recommended)
@@ -211,10 +214,16 @@ def build_srcnn(cfg) -> SRCNNDeep:
         SRCNNDeep model
     """
     model_cfg = cfg.srcnn
+    
     model = SRCNNDeep(
         n_channels=model_cfg.get("n_channels", 1),
         n_feats=model_cfg.get("n_feats", 64),
         n_layers=model_cfg.get("n_layers", 8),
         scale=cfg.data.get("scale_factor", 4),
     )
+    """
+    model = SRCNNBaseline(
+        n_channels=model_cfg.get("n_channels", 1),
+    )
+    """
     return model
