@@ -60,14 +60,21 @@ def load_image(path: str, window: tuple = None) -> np.ndarray:
             with rasterio.open(path) as src:
                 if window is not None:
                     y, x, h, w = window
-                    arr = src.read(1, window=rasterio.windows.Window(x, y, w, h)).astype(np.float32)
+                    arr = src.read(1, window=rasterio.windows.Window(x, y, w, h))
                 else:
-                    arr = src.read(1).astype(np.float32)
+                    arr = src.read(1)
+                # If array is complex (common for SAR), convert to magnitude to avoid casting warnings
+                if np.iscomplexobj(arr):
+                    arr = np.abs(arr)
+                arr = np.squeeze(arr).astype(np.float32)
             return arr
         if TIFFFILE_AVAILABLE:
             img = tifffile.imread(path)
             if img.ndim == 3:
                 img = img[0]  # First band
+            # Handle complex-valued TIFFs
+            if np.iscomplexobj(img):
+                img = np.abs(img)
             return img.astype(np.float32)
 
     # Fallback: PIL for .png / .jpg or unhandled .tif
@@ -181,7 +188,10 @@ class SARDataset(Dataset):
                     raise ValueError(f"Image {path} too small for patch size {ps}")
                 y = np.random.randint(0, h - ps + 1)
                 x = np.random.randint(0, w - ps + 1)
-                hr_patch = src.read(1, window=rasterio.windows.Window(x, y, ps, ps)).astype(np.float32)
+                arr = src.read(1, window=rasterio.windows.Window(x, y, ps, ps))
+                if np.iscomplexobj(arr):
+                    arr = np.abs(arr)
+                hr_patch = np.squeeze(arr).astype(np.float32)
         else:
             raw = load_image(path)
             h, w = raw.shape
@@ -283,7 +293,11 @@ def build_dataloaders(cfg, seed: int = 42):
                 scale = max(1, longest // 1024)
                 out_h = max(1, src.height // scale)
                 out_w = max(1, src.width // scale)
-                arr = src.read(1, out_shape=(1, out_h, out_w)).astype(np.float32)
+                arr = src.read(1, out_shape=(1, out_h, out_w))
+                arr = np.squeeze(arr)
+                if np.iscomplexobj(arr):
+                    arr = np.abs(arr)
+                arr = arr.astype(np.float32)
                 raw_train.append(arr)
     else:
         from PIL import Image
