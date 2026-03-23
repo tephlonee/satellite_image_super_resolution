@@ -230,7 +230,7 @@ def split_image_paths(
     paths = sorted(
         p for p in Path(image_dir).iterdir()
         if p.suffix.lower() in extensions and "preview" not in p.stem
-    )
+    )[:30]
 
     if not paths:
         raise FileNotFoundError(f"No valid .tif images found in: {image_dir}")

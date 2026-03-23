@@ -112,8 +112,8 @@ class SRCNNTrainer:
         # Optimizer
         self.optimizer = torch.optim.Adam(
             self.model.parameters(),
-            lr=self.train_cfg.get("learning_rate", 1e-2),
-            weight_decay=self.train_cfg.get("weight_decay", 1e-2),
+            lr=self.train_cfg.get("learning_rate", 1e-4),
+            weight_decay=self.train_cfg.get("weight_decay", 1e-4),
         )
 
         # LR scheduler: Cosine annealing for stable convergence
@@ -164,6 +164,16 @@ class SRCNNTrainer:
 
         logger.info(f"Starting SRCNN training for {total_epochs} epochs")
 
+        history = {
+            "epoch": [],
+            "train_loss": [],
+            "train_psnr": [],
+            "train_ssim": [],
+            "val_loss": [],
+            "val_psnr": [],
+            "val_ssim": [],
+        }
+
         for epoch in range(self.start_epoch, total_epochs):
             # Train
             train_metrics = _run_epoch(
@@ -204,6 +214,14 @@ class SRCNNTrainer:
                 best_filename="best_model.pth",
             )
 
+            history["epoch"].append(epoch)
+            history["train_loss"].append(train_metrics["loss"])
+            history["train_psnr"].append(train_metrics["psnr"])
+            history["train_ssim"].append(train_metrics["ssim"])
+            history["val_loss"].append(val_metrics["loss"])
+            history["val_psnr"].append(val_metrics["psnr"])
+            history["val_ssim"].append(val_metrics["ssim"])
+
             # Early stopping (monitor val PSNR)
             if self.early_stopping is not None:
                 if self.early_stopping(val_metrics["psnr"]):
@@ -211,4 +229,4 @@ class SRCNNTrainer:
                     break
 
         logger.info(f"Training complete. Best val PSNR: {self.best_psnr:.4f} dB")
-        return {"best_psnr": self.best_psnr}
+        return {"best_psnr": self.best_psnr , "history": history }

@@ -35,8 +35,8 @@ augmentation:
 # --- SRCNN Model ---
 srcnn:
   n_channels: 1                     # Grayscale SAR
-  n_feats: 96
-  n_layers: 16
+  n_feats: 64
+  n_layers: 8
   kernel_sizes: [9, 5, 5]           # Classic SRCNN kernel progression
 
 # --- GAN Model ---
@@ -48,7 +48,7 @@ gan:
 
 # --- Training: SRCNN ---
 train_srcnn:
-  epochs: 200
+  epochs: 60
   batch_size: 16
   learning_rate: 1.0e-4
   weight_decay: 1.0e-4
@@ -61,6 +61,7 @@ train_srcnn:
   checkpoint_dir: "checkpoints/srcnn"
   log_interval: 10                  # Log every N epochs
   save_best_only: true
+  train_log_dir: "logs/srcnn"             # TensorBoard logs
 
 # --- Training: GAN ---
 train_gan:
@@ -82,6 +83,7 @@ train_gan:
   checkpoint_dir: "checkpoints/gan"
   log_interval: 10
   save_best_only: true
+  train_log_dir: "logs/gan"
 
 # --- Evaluation ---
 evaluation:

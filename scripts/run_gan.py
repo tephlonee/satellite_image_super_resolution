@@ -21,6 +21,7 @@ from utils.config import load_config
 from utils.device import set_seed, get_device
 from utils.logger import get_logger
 from utils.checkpoint import load_checkpoint
+from utils.history import save_train_info
 from data.dataset import build_dataloaders
 from train.train_gan import GANTrainer
 from evaluation.metrics import compute_metrics
@@ -60,7 +61,7 @@ def main():
         resume_g=args.resume_g,
         resume_d=args.resume_d,
     )
-    trainer.train()
+    results = trainer.train()
 
     # Test evaluation
     device = get_device(cfg.get("device", "auto"))
@@ -88,6 +89,9 @@ def main():
     logger.info("=" * 60)
     logger.info(f"Test Results → PSNR: {test_psnr:.4f} dB | SSIM: {test_ssim:.4f}")
     logger.info("=" * 60)
+
+    results["test_metrics"] = {"psnr": test_psnr, "ssim": test_ssim}
+    save_train_info(results, cfg.train_gan.train_log_dir)
 
 
 if __name__ == "__main__":

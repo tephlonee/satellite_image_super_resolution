@@ -13,6 +13,7 @@ import argparse
 import sys
 import os
 
+
 # Allow running from project root
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -20,6 +21,7 @@ from utils.config import load_config
 from utils.device import set_seed
 from utils.logger import get_logger
 from data.dataset import build_dataloaders
+from utils.history import save_train_info
 from train.train_srcnn import SRCNNTrainer
 
 logger = get_logger(__name__)
@@ -74,6 +76,8 @@ def main():
         from utils.checkpoint import load_checkpoint
         load_checkpoint(best_ckpt, model, device=device)
 
+    
+
     model.eval()
     test_psnr, test_ssim = 0.0, 0.0
     n = 0
@@ -92,6 +96,11 @@ def main():
     logger.info("=" * 60)
     logger.info(f"Test Results → PSNR: {test_psnr:.4f} dB | SSIM: {test_ssim:.4f}")
     logger.info("=" * 60)
+
+    results["test_psnr"] = test_psnr
+    results["test_ssim"] = test_ssim
+    
+    save_train_info(results, cfg.train_srcnn.train_log_dir)
 
 
 if __name__ == "__main__":

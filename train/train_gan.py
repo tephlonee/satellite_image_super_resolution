@@ -267,6 +267,16 @@ class GANTrainer:
             f"{total_epochs - self.warmup_epochs} adversarial epochs"
         )
 
+        history = {
+            "epoch": [],
+            "train_loss": [],
+            "train_psnr": [],
+            "train_ssim": [],
+            "val_loss": [],
+            "val_psnr": [],
+            "val_ssim": [],
+        }
+
         for epoch in range(self.start_epoch, total_epochs):
             adversarial = epoch >= self.warmup_epochs
 
@@ -307,9 +317,17 @@ class GANTrainer:
             save_checkpoint(g_state, ckpt_dir, "generator_latest.pth", is_best, "generator_best.pth")
             save_checkpoint(d_state, ckpt_dir, "discriminator_latest.pth")
 
+            history["epoch"].append(epoch)
+            history["train_loss"].append(train_metrics["loss"])
+            history["train_psnr"].append(train_metrics["psnr"])
+            history["train_ssim"].append(train_metrics["ssim"])
+            history["val_loss"].append(val_metrics["loss"])
+            history["val_psnr"].append(val_metrics["psnr"])
+            history["val_ssim"].append(val_metrics["ssim"])
+
             if self.early_stopping and self.early_stopping(val_metrics["psnr"]):
                 logger.info(f"Early stopping at epoch {epoch}")
                 break
 
         logger.info(f"GAN training complete. Best val PSNR: {self.best_psnr:.4f} dB")
-        return {"best_psnr": self.best_psnr}
+        return {"best_psnr": self.best_psnr, "history": history}
