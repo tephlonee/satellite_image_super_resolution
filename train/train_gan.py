@@ -269,10 +269,10 @@ class GANTrainer:
 
         history = {
             "epoch": [],
-            "train_loss": [],
+            "train_loss_g_loss": [],
+            "train_loss_d_loss": [],
             "train_psnr": [],
             "train_ssim": [],
-            "val_loss": [],
             "val_psnr": [],
             "val_ssim": [],
         }
@@ -318,10 +318,10 @@ class GANTrainer:
             save_checkpoint(d_state, ckpt_dir, "discriminator_latest.pth")
 
             history["epoch"].append(epoch)
-            history["train_loss"].append(train_metrics["loss"])
+            history["train_loss_g_loss"].append(train_metrics["g_loss"])
+            history["train_loss_d_loss"].append(train_metrics["d_loss"])
             history["train_psnr"].append(train_metrics["psnr"])
             history["train_ssim"].append(train_metrics["ssim"])
-            history["val_loss"].append(val_metrics["loss"])
             history["val_psnr"].append(val_metrics["psnr"])
             history["val_ssim"].append(val_metrics["ssim"])
 

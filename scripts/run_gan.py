@@ -91,7 +91,7 @@ def main():
     logger.info("=" * 60)
 
     results["test_metrics"] = {"psnr": test_psnr, "ssim": test_ssim}
-    save_train_info(results, cfg.train_gan.train_log_dir)
+    save_train_info(results, cfg.train_gan.train_log_dir , model_name="gan")
 
 
 if __name__ == "__main__":

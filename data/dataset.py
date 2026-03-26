@@ -26,6 +26,7 @@ from torch.utils.data import Dataset, DataLoader
 from data.preprocessing import SARPreprocessor
 from data.augmentation import PairedAugmentation, to_tensor
 from utils.logger import get_logger
+from utils.visualization import save_patch_and_steps
 
 logger = get_logger(__name__)
 
@@ -171,6 +172,8 @@ class SARDataset(Dataset):
             scale=self.scale,
         )
 
+        self.images_cached = False
+
     def __len__(self) -> int:
         # Return a virtual length large enough for good epoch coverage
         return len(self.image_paths) * 50
@@ -204,10 +207,29 @@ class SARDataset(Dataset):
         
         lr_patch = generate_lr(hr_patch, self.scale , self.patch_size)
         # Preprocess
-        hr_patch = self.preprocessor(hr_patch)
-        lr_patch = self.preprocessor(lr_patch)
+        hr_patch, log_transformed_hr, normalized_hr = self.preprocessor(hr_patch)
+        lr_patch, log_transformed_lr, normalized_lr = self.preprocessor(lr_patch)
         # Augment
         lr_patch, hr_patch = self.augmentation(lr_patch, hr_patch, hr_patch_size=self.patch_size)
+        
+
+        """
+        if not self.images_cached:
+            steps = {
+                "log": log_transformed_lr,
+                "normalized": normalized_lr,
+                "speckle_filtered": lr_patch,  # Or the actual speckle-filtered version if you have it
+            }
+            save_patch_and_steps(
+                lr=lr_patch,
+                hr=hr_patch,
+                out_dir="visualizations",
+                basename=f"patch_{idx}",
+                steps=steps
+            )
+            self.images_cached = True
+
+        """
         # Convert to tensors (C=1)
         return to_tensor(lr_patch), to_tensor(hr_patch)
 
@@ -230,7 +252,7 @@ def split_image_paths(
     paths = sorted(
         p for p in Path(image_dir).iterdir()
         if p.suffix.lower() in extensions and "preview" not in p.stem
-    )[:30]
+    )
 
     if not paths:
         raise FileNotFoundError(f"No valid .tif images found in: {image_dir}")

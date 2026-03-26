@@ -319,6 +319,7 @@ class SARPreprocessor:
             
             img = add_speckle_noise(img)
 
+        speckled_image = None
         # Optional speckle filter (apply BEFORE log transform for multiplicative model)
         if self.speckle_enabled and not self.speckle_noise:
             
@@ -329,15 +330,24 @@ class SARPreprocessor:
                 looks=self.speckle_looks,
             )
 
+            speckled_image = img
+
         # Log transform
+        log_transformed_image = None
         if self.log_transform:
             img = log_transform(img)
 
+
+            log_transformed_image = img
+
         # Normalize
+        normalized_image = None
         if self.normalize:
             img, self.min_val, self.max_val = normalize(img , self.min_val, self.max_val)
 
-        return img
+            normalized_image = img
+
+        return img, log_transformed_image, normalized_image
 
     def __call__(self, image: np.ndarray) -> np.ndarray:
         return self.process(image)

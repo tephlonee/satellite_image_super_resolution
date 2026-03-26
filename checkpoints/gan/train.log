@@ -22,3 +22,7 @@
 2026-03-23 18:38:33 | INFO     | gan_training | Epoch 0000 [VAL]  |  psnr: 22.978996  |  ssim: 0.435272
 2026-03-23 18:43:32 | INFO     | gan_training | Epoch 0001 [TRAIN]  |  g_loss: 0.024804  |  d_loss: 0.000000  |  psnr: 27.187788  |  ssim: 0.630156
 2026-03-23 18:43:32 | INFO     | gan_training | Epoch 0001 [VAL]  |  psnr: 29.025546  |  ssim: 0.628024
+2026-03-26 17:34:53 | INFO     | gan_training | Epoch 0000 [TRAIN]  |  g_loss: 0.414084  |  d_loss: 0.000000  |  psnr: 16.277615  |  ssim: 0.334347
+2026-03-26 17:34:53 | INFO     | gan_training | Epoch 0000 [VAL]  |  psnr: 22.978996  |  ssim: 0.435272
+2026-03-26 17:53:01 | INFO     | gan_training | Epoch 0000 [TRAIN]  |  g_loss: 0.414084  |  d_loss: 0.000000  |  psnr: 16.277615  |  ssim: 0.334347
+2026-03-26 17:53:01 | INFO     | gan_training | Epoch 0000 [VAL]  |  psnr: 22.978996  |  ssim: 0.435272

@@ -54,7 +54,41 @@ def plot_training_history(history, output_dir):
     plt.savefig(plot_path)
     logger.info(f"Training history plot saved to: {plot_path}")
 
+def plot_gan_training_history(history, output_dir):
 
-def save_train_info(results, output_dir):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = os.path.join(output_dir, f"training_{timestamp}")
+    os.makedirs(output_dir, exist_ok=True)
+
+    epochs = history["epoch"]
+    plt.figure(figsize=(12, 5))
+
+    # Loss plot
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs, history["train_loss_g_loss"], label="Train G Loss")
+    plt.plot(epochs, history["train_loss_d_loss"], label="Train D Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title("GAN Training Loss")
+    plt.legend()
+
+    # PSNR plot
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs, history["train_psnr"], label="Train PSNR")
+    plt.plot(epochs, history["val_psnr"], label="Val PSNR")
+    plt.xlabel("Epoch")
+    plt.ylabel("PSNR (dB)")
+    plt.title("GAN PSNR")
+    plt.legend()
+
+    plot_path = os.path.join(output_dir, "gan_training_history.png")
+    plt.savefig(plot_path)
+    logger.info(f"GAN training history plot saved to: {plot_path}")
+
+
+def save_train_info(results, output_dir , model_name="srcnn"):
     save_training_history(results["history"], output_dir)
-    plot_training_history(results["history"], output_dir)
+    if model_name == "srcnn":
+        plot_training_history(results["history"], output_dir)
+    elif model_name == "gan":
+        plot_gan_training_history(results["history"], output_dir)
