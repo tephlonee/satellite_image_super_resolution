@@ -194,6 +194,41 @@ class DiscriminatorLoss(nn.Module):
         return total, {"d_real_loss": real_loss.item(), "d_fake_loss": fake_loss.item()}
 
 
+class CharbonnierLoss(nn.Module):
+    """
+    Charbonnier Loss (Refined L1).
+    More robust to outliers than MSE and smoother than L1 near zero.
+    Standard for state-of-the-art Super Resolution (EDSR/RCAN).
+    """
+    def __init__(self, eps=1e-3):
+        super(CharbonnierLoss, self).__init__()
+        self.eps = eps
+
+    def forward(self, x, y):
+        diff = x - y
+        # loss = sqrt((x-y)^2 + epsilon^2)
+        loss = torch.sqrt(diff * diff + self.eps * self.eps)
+        return torch.mean(loss)
+
+
+class HybridSRLoss(nn.Module):
+    """
+    Combines Charbonnier Loss for sharpness with a tiny 
+    TV Loss for spatial consistency.
+    """
+    def __init__(self, tv_weight=1e-7, charbonnier_eps=1e-3):
+        super().__init__()
+        self.charbonnier = CharbonnierLoss(eps=charbonnier_eps)
+        self.tv_loss = TVLoss(weight=tv_weight)
+
+    def forward(self, sr, hr):
+        # Primary reconstruction loss
+        l_char = self.charbonnier(sr, hr)
+        # Regularization (suppresses checkerboard/noise)
+        l_tv = self.tv_loss(sr)
+        
+        return l_char + l_tv
+
 # ---------------------------------------------------------------------------
 # Factory
 # ---------------------------------------------------------------------------
@@ -216,3 +251,10 @@ def build_gan_criteria(cfg):
     )
     disc_criterion = DiscriminatorLoss()
     return gen_criterion, disc_criterion
+
+
+def build_rcan_criterion(cfg) -> CharbonnierLoss:
+    """RCAN uses the Charbonnier loss for fair comparison."""
+    return CharbonnierLoss(
+        eps=cfg.train_rcan.get("charbonnier_eps", 1e-3)
+    )  # More robust than L1 for RCAN, per original paper

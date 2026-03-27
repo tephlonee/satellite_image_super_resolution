@@ -120,7 +120,7 @@ class SRCNNBaseline(nn.Module):
 
 class SRCNNDeep(nn.Module):
     """
-    Deeper SRCNN with configurable residual blocks.
+    Deeper SRCNN(EDSR) with configurable residual blocks.
 
     Architecture:
         1. Feature extraction (input conv)
@@ -156,6 +156,8 @@ class SRCNNDeep(nn.Module):
 
         # Residual body
         self.body = nn.Sequential(*[ResBlock(n_feats) for _ in range(n_layers)])
+
+        #self.body_tail = nn.Conv2d(n_feats, n_feats, 3, padding=1, bias=True)
 
         # Upsampling via pixel shuffle
         self.upsample = nn.Sequential(
