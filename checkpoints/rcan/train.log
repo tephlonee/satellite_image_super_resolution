@@ -1,0 +1,2 @@
+2026-03-28 13:47:56 | INFO     | rcan_training | Epoch 0000 [TRAIN]  |  loss: 0.138058  |  psnr: 15.898466  |  ssim: 0.022986
+2026-03-28 13:47:56 | INFO     | rcan_training | Epoch 0000 [VAL]  |  loss: 0.136581  |  psnr: 15.695845  |  ssim: 0.027896

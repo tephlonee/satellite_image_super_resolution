@@ -91,7 +91,7 @@ train_gan:
   train_log_dir: "logs/gan"
 
 train_rcan:
-  epochs: 100
+  epochs: 60
   batch_size: 16
   learning_rate: 1.0e-4
   weight_decay: 1.0e-4

@@ -85,18 +85,21 @@ class RCAN(nn.Module):
         out = self.tail(out)
 
         return out + x_up
+    
+    def n_parameters(self) -> int:
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
     
 
 def build_rcan(cfg):
-    model_cfg = cfg.model_rcan
+    model_cfg = cfg.rcan
 
     return RCAN(
         n_channels=model_cfg.get("n_channels", 1),
         n_feats=model_cfg.get("n_feats", 64),
-        n_groups=model_cfg.get("n_groups", 5),
-        n_blocks=model_cfg.get("n_blocks", 8),
+        n_groups=model_cfg.get("n_res_groups", 5),
+        n_blocks=model_cfg.get("n_res_blocks", 8),
         scale=cfg.get("scale_factor", 4),
         reduction=model_cfg.get("reduction", 16),
     )

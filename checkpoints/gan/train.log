@@ -42,3 +42,13 @@
 2026-03-26 18:43:56 | INFO     | gan_training | Epoch 0008 [VAL]  |  psnr: 31.612809  |  ssim: 0.706330
 2026-03-26 18:57:53 | INFO     | gan_training | Epoch 0010 [TRAIN]  |  g_loss: 0.024987  |  d_loss: 0.269823  |  psnr: 31.213977  |  ssim: 0.686065
 2026-03-26 18:57:53 | INFO     | gan_training | Epoch 0010 [VAL]  |  psnr: 29.839711  |  ssim: 0.594296
+2026-03-27 14:32:21 | INFO     | gan_training | Epoch 0020 [TRAIN]  |  g_loss: 0.024768  |  d_loss: 0.168227  |  psnr: 31.261595  |  ssim: 0.700176
+2026-03-27 14:32:21 | INFO     | gan_training | Epoch 0020 [VAL]  |  psnr: 31.039469  |  ssim: 0.679793
+2026-03-27 15:57:43 | INFO     | gan_training | Epoch 0030 [TRAIN]  |  g_loss: 0.024843  |  d_loss: 0.162500  |  psnr: 31.118881  |  ssim: 0.699012
+2026-03-27 15:57:43 | INFO     | gan_training | Epoch 0030 [VAL]  |  psnr: 29.982780  |  ssim: 0.607370
+2026-03-27 17:32:33 | INFO     | gan_training | Epoch 0040 [TRAIN]  |  g_loss: 0.026615  |  d_loss: 0.079353  |  psnr: 30.820947  |  ssim: 0.681941
+2026-03-27 17:32:33 | INFO     | gan_training | Epoch 0040 [VAL]  |  psnr: 30.409354  |  ssim: 0.637036
+2026-03-27 18:59:17 | INFO     | gan_training | Epoch 0050 [TRAIN]  |  g_loss: 0.025140  |  d_loss: 0.058924  |  psnr: 31.382159  |  ssim: 0.713598
+2026-03-27 18:59:17 | INFO     | gan_training | Epoch 0050 [VAL]  |  psnr: 30.037028  |  ssim: 0.630403
+2026-03-27 20:37:06 | INFO     | gan_training | Epoch 0060 [TRAIN]  |  g_loss: 0.026879  |  d_loss: 0.074849  |  psnr: 30.483894  |  ssim: 0.670991
+2026-03-27 20:37:06 | INFO     | gan_training | Epoch 0060 [VAL]  |  psnr: 29.207275  |  ssim: 0.596849

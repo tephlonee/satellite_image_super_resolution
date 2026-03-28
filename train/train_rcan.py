@@ -47,7 +47,7 @@ def _run_epoch(
             lr = lr.to(device, non_blocking=True)
             hr = hr.to(device, non_blocking=True)
 
-            with torch.cuda.amp.autocast(enabled=scaler is not None):
+            with torch.amp.autocast(enabled=scaler is not None , device_type=device.type):
                 sr = model(lr)
                 loss, _ = criterion(sr, hr)
 
@@ -121,11 +121,11 @@ class RCANTrainer:
 
         self.scheduler = torch.optim.lr_scheduler.MultiStepLR(
             self.optimizer,
-            milestones=[int(total_epochs * 0.5), int(total_epochs * 0.75)],
+            milestones=[int(self.train_cfg.get("epochs", 200) * 0.5), int(self.train_cfg.get("epochs", 200) * 0.75)],
             gamma=0.5
         )
 
-        self.scaler = torch.cuda.amp.GradScaler()
+        self.scaler = torch.amp.GradScaler()
 
         # Data
         self.train_loader = train_loader
@@ -182,12 +182,12 @@ class RCANTrainer:
             # Train
             train_metrics = _run_epoch(
                 self.model, self.train_loader, self.criterion,
-                self.optimizer, self.device, train=True,
+                self.optimizer, self.device, scaler=self.scaler, train=True,
             )
             # Validate
             val_metrics = _run_epoch(
                 self.model, self.val_loader, self.criterion,
-                None, self.device, train=False,
+                None, self.device, scaler=self.scaler, train=False,
             )
 
             self.scheduler.step()

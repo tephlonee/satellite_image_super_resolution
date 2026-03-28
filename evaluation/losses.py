@@ -202,7 +202,7 @@ class CharbonnierLoss(nn.Module):
     """
     def __init__(self, eps=1e-3):
         super(CharbonnierLoss, self).__init__()
-        self.eps = eps
+        self.eps = float(eps)
 
     def forward(self, x, y):
         diff = x - y
@@ -226,8 +226,8 @@ class HybridSRLoss(nn.Module):
         l_char = self.charbonnier(sr, hr)
         # Regularization (suppresses checkerboard/noise)
         l_tv = self.tv_loss(sr)
-        
-        return l_char + l_tv
+
+        return l_char + l_tv, {"charbonnier_loss": l_char.item(), "tv_loss": l_tv.item()}
 
 # ---------------------------------------------------------------------------
 # Factory
@@ -253,8 +253,9 @@ def build_gan_criteria(cfg):
     return gen_criterion, disc_criterion
 
 
-def build_rcan_criterion(cfg) -> CharbonnierLoss:
+def build_rcan_criterion(cfg) -> HybridSRLoss:
     """RCAN uses the Charbonnier loss for fair comparison."""
-    return CharbonnierLoss(
-        eps=cfg.train_rcan.get("charbonnier_eps", 1e-3)
+    return HybridSRLoss(
+        tv_weight=cfg.train_rcan.get("tv_loss_weight", 1e-7),
+        charbonnier_eps=cfg.train_rcan.get("charbonnier_eps", 1e-3)
     )  # More robust than L1 for RCAN, per original paper

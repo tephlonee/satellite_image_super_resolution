@@ -47,7 +47,7 @@ def _run_epoch(
     grad_clip: float = 1.0,
 ) -> dict:
     """Run one training or validation epoch."""
-    model.train(train)
+    model.train(train) # Set train/eval mode for layers like dropout/batchnorm
     total_loss = 0.0
     total_psnr = 0.0
     total_ssim = 0.0
@@ -59,12 +59,14 @@ def _run_epoch(
             lr = lr.to(device, non_blocking=True)
             hr = hr.to(device, non_blocking=True)
 
-            sr = model(lr)
+            sr = model(lr) # Internally calls model.forward(x_train)
+
             loss, _ = criterion(sr, hr)
 
             if train:
-                optimizer.zero_grad()
-                loss.backward()
+
+                optimizer.zero_grad() # Clear previous gradients
+                loss.backward() # Compute gradients based on the forward graph
                 if grad_clip > 0:
                     nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
                 optimizer.step()
