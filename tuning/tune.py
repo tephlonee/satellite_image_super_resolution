@@ -84,7 +84,10 @@ def _srcnn_objective(trial, base_cfg: DotDict, n_epochs: int = 30) -> float:
     device = get_device(cfg.get("device", "auto"))
 
     try:
-        train_loader, val_loader, _, preprocessor = build_dataloaders(cfg)
+        train_loader, val_loader, _, preprocessor = build_dataloaders(
+            cfg,
+            batch_size=cfg.train_srcnn.batch_size,
+        )
 
         model = SRCNNDeep(
             n_channels=cfg.srcnn.get("n_channels", 1),
@@ -180,7 +183,10 @@ def _gan_objective(trial, base_cfg: DotDict, n_epochs: int = 20) -> float:
     device = get_device(cfg.get("device", "auto"))
 
     try:
-        train_loader, val_loader, _, _ = build_dataloaders(cfg)
+        train_loader, val_loader, _, _ = build_dataloaders(
+            cfg,
+            batch_size=cfg.train_gan.batch_size,
+        )
 
         generator = SRGenerator(
             n_channels=cfg.gan.get("n_channels", 1),

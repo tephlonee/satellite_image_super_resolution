@@ -4,7 +4,7 @@ scripts/run_inference.py
 ------------------------
 Run super-resolution inference on new SAR images.
 
-Supports both SRCNN and GAN models.
+Supports SRCNN, FSRCNN, SRResNet, RCAN, and GAN models.
 Outputs SR images as .tif (if rasterio available) or .png.
 
 Usage:
@@ -84,7 +84,8 @@ def infer_image(
     scale: int,
     tile_size: int = 256,
     overlap: int = 32,
-) -> np.ndarray:
+    stream_path: str | None = None,
+) -> np.ndarray | None:
     """
     Run SR inference on a full image using overlapping tile strategy.
 
@@ -105,12 +106,43 @@ def infer_image(
     """
     model.eval()
 
-    # Preprocess full image
-    lr_full = preprocessor(image)
+    # Preprocess full image (preprocessor returns (img, log, norm))
+    lr_full, _, _ = preprocessor(image)
     h, w = lr_full.shape
     out_h, out_w = h * scale, w * scale
 
-    # Output accumulator and weight map
+    # If the output is extremely large, stream tiles directly to disk to avoid RAM OOM
+    MAX_PIXELS_RAM = 50_000_000  # ~200MB for float32; adjust as needed
+    if stream_path and (out_h * out_w) > MAX_PIXELS_RAM:
+        import tifffile
+        stream_path = str(Path(stream_path).with_suffix(".tif"))
+        Path(stream_path).parent.mkdir(parents=True, exist_ok=True)
+        overlap = 0
+        stride = tile_size
+        with tifffile.TiffWriter(stream_path, bigtiff=True) as tif:
+            # Write an empty image first, then update tiles via memmap-like API
+            # tifffile supports writing full image at once; we instead assemble per tile to a scratch array
+            out = np.memmap(Path(stream_path + ".tmp"), dtype=np.uint16, mode="w+", shape=(out_h, out_w))
+            with torch.no_grad():
+                for y in range(0, h, stride):
+                    for x in range(0, w, stride):
+                        y_end = min(y + tile_size, h)
+                        x_end = min(x + tile_size, w)
+                        tile = lr_full[y:y_end, x:x_end]
+                        lr_t = to_tensor(tile).unsqueeze(0).to(device)
+                        sr_t = model(lr_t).clamp(0, 1).squeeze(0).squeeze(0).cpu().numpy()
+                        oy, ox = y * scale, x * scale
+                        oh, ow = sr_t.shape
+                        out[oy : oy + oh, ox : ox + ow] = (sr_t * 65535).astype(np.uint16)
+            tif.write(out, dtype=np.uint16)
+            try:
+                Path(stream_path + ".tmp").unlink()
+            except Exception:
+                pass
+        logger.info(f"Saved streamed TIFF: {stream_path}")
+        return None
+
+    # Output accumulator and weight map (RAM-safe case)
     output = np.zeros((out_h, out_w), dtype=np.float32)
     weight = np.zeros((out_h, out_w), dtype=np.float32)
 
@@ -149,7 +181,12 @@ def infer_image(
 def parse_args():
     parser = argparse.ArgumentParser(description="SAR Super-Resolution Inference")
     parser.add_argument("--config", type=str, default="configs/config.yaml")
-    parser.add_argument("--model", type=str, default="srcnn", choices=["srcnn", "gan"])
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="srcnn",
+        choices=["srcnn", "fsrcnn", "srresnet", "rcan", "gan"],
+    )
     parser.add_argument("--checkpoint", type=str, required=True,
                         help="Path to model checkpoint (.pth)")
     parser.add_argument("--input_dir", type=str, default=None,
@@ -180,6 +217,15 @@ def main():
     if args.model == "srcnn":
         from models.srcnn import build_srcnn
         model = build_srcnn(cfg).to(device)
+    elif args.model == "fsrcnn":
+        from models.fsrcnn import build_fsrcnn
+        model = build_fsrcnn(cfg).to(device)
+    elif args.model == "srresnet":
+        from models.srresnet import build_srresnet
+        model = build_srresnet(cfg).to(device)
+    elif args.model == "rcan":
+        from models.rcan import build_rcan
+        model = build_rcan(cfg).to(device)
     else:
         from models.gan import build_gan
         model, _ = build_gan(cfg)
@@ -209,6 +255,7 @@ def main():
         logger.info(f"  Processing: {img_path.name}")
         raw = load_image(str(img_path))
 
+        out_name = img_path.stem + f"_SR_x{scale}" + img_path.suffix
         sr = infer_image(
             model=model,
             image=raw,
@@ -217,10 +264,11 @@ def main():
             scale=scale,
             tile_size=args.tile_size,
             overlap=args.overlap,
+            stream_path=os.path.join(args.output_dir, out_name),
         )
 
-        out_name = img_path.stem + f"_SR_x{scale}" + img_path.suffix
-        save_image(sr, os.path.join(args.output_dir, out_name))
+        if sr is not None:
+            save_image(sr, os.path.join(args.output_dir, out_name))
 
     logger.info("Inference complete.")
 

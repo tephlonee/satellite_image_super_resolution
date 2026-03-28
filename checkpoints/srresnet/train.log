@@ -1,0 +1,2 @@
+2026-03-28 16:48:20 | INFO     | srresnet_training | Epoch 0000 [TRAIN]  |  loss: 0.288663  |  psnr: 15.439881  |  ssim: 0.079517
+2026-03-28 16:48:20 | INFO     | srresnet_training | Epoch 0000 [VAL]  |  loss: 0.012972  |  psnr: 19.535008  |  ssim: 0.140725

@@ -1,0 +1,8 @@
+2026-03-28 16:31:17 | INFO     | fsrcnn_training | Epoch 0000 [TRAIN]  |  loss: 0.153697  |  psnr: 8.298352  |  ssim: 0.179468
+2026-03-28 16:31:17 | INFO     | fsrcnn_training | Epoch 0000 [VAL]  |  loss: 0.121832  |  psnr: 9.257515  |  ssim: 0.143057
+2026-03-28 16:57:00 | INFO     | fsrcnn_training | Epoch 0000 [TRAIN]  |  loss: 0.153697  |  psnr: 8.298352  |  ssim: 0.179468
+2026-03-28 16:57:00 | INFO     | fsrcnn_training | Epoch 0000 [VAL]  |  loss: 0.121832  |  psnr: 9.257515  |  ssim: 0.143057
+2026-03-28 17:06:38 | INFO     | fsrcnn_training | Epoch 0000 [TRAIN]  |  loss: 0.119581  |  psnr: 9.644591  |  ssim: 0.192675
+2026-03-28 17:06:38 | INFO     | fsrcnn_training | Epoch 0000 [VAL]  |  loss: 0.046564  |  psnr: 13.384910  |  ssim: 0.454715
+2026-03-28 17:21:45 | INFO     | fsrcnn_training | Epoch 0000 [TRAIN]  |  loss: 0.099437  |  psnr: 10.557779  |  ssim: 0.267558
+2026-03-28 17:21:45 | INFO     | fsrcnn_training | Epoch 0000 [VAL]  |  loss: 0.044822  |  psnr: 13.524205  |  ssim: 0.463548

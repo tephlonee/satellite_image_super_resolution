@@ -16,6 +16,8 @@ import numpy as np
 from typing import Optional
 import warnings
 
+import torch
+
 
 
 try:
@@ -297,11 +299,25 @@ class SARPreprocessor:
 
     def fit(self, images: list) -> None:
         """Compute global min/max from a list of images for consistent normalization."""
-        all_vals = np.concatenate([np.asarray(im, dtype=np.float32).ravel() for im in images])
-        if self.log_transform:
-            all_vals = log_transform(all_vals)
-        self.min_val = float(all_vals.min())
-        self.max_val = float(all_vals.max())
+        min_val = None
+        max_val = None
+        for im in images:
+            vals = np.asarray(im, dtype=np.float32)
+            if self.log_transform:
+                vals = log_transform(vals)
+            im_min = float(vals.min())
+            im_max = float(vals.max())
+            if min_val is None:
+                min_val, max_val = im_min, im_max
+            else:
+                min_val = min(min_val, im_min)
+                max_val = max(max_val, im_max)
+
+        if min_val is None or max_val is None:
+            min_val, max_val = 0.0, 1.0
+
+        self.min_val = float(min_val)
+        self.max_val = float(max_val)
 
     def process(self, image: np.ndarray) -> np.ndarray:
         """

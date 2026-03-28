@@ -241,6 +241,22 @@ def build_srcnn_criterion(cfg) -> SRCNNLoss:
     )
 
 
+def build_fsrcnn_criterion(cfg) -> SRCNNLoss:
+    train_cfg = cfg.train_fsrcnn
+    return SRCNNLoss(
+        loss_type=train_cfg.get("loss", "l1"),
+        tv_loss_weight=train_cfg.get("tv_loss_weight", 0.0),
+    )
+
+
+def build_srresnet_criterion(cfg) -> SRCNNLoss:
+    train_cfg = cfg.train_srresnet
+    return SRCNNLoss(
+        loss_type=train_cfg.get("loss", "l1"),
+        tv_loss_weight=train_cfg.get("tv_loss_weight", 0.0),
+    )
+
+
 def build_gan_criteria(cfg):
     """Returns (generator_criterion, discriminator_criterion)."""
     train_cfg = cfg.train_gan

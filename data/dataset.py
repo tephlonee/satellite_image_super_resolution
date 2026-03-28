@@ -280,7 +280,7 @@ def worker_init_fn(wid , seed):
     np.random.seed(seed + wid)
 
 
-def build_dataloaders(cfg, seed: int = 42):
+def build_dataloaders(cfg, seed: int = 42, batch_size: Optional[int] = None):
     """
     Build train, val, and test DataLoader objects from config.
     Uses downsampled proxies for preprocessor.fit to avoid OOM.
@@ -298,39 +298,41 @@ def build_dataloaders(cfg, seed: int = 42):
     preprocessor = SARPreprocessor(cfg.preprocessing)
 
     
-    raw_train = []
-    if RASTERIO_AVAILABLE:
-        for p in train_paths:
-            if high_image_quality is None:
+    def _iter_fit_images():
+        if RASTERIO_AVAILABLE:
+            for i, p in enumerate(train_paths, start=1):
+                if i == 1 or i % 5 == 0 or i == len(train_paths):
+                    logger.info(f"  preprocessor fit image {i}/{len(train_paths)}: {Path(p).name}")
+                if high_image_quality is None:
+                    size_mb = Path(p).stat().st_size / (1024 * 1024)
+                    if size_mb > 500:
+                        nonlocal_high_quality[0] = True
+                with rasterio.open(p) as src:
+                    longest = max(src.height, src.width)
+                    down = max(1, longest // 1024)
+                    out_h = max(1, src.height // down)
+                    out_w = max(1, src.width // down)
+                    arr = src.read(1, out_shape=(1, out_h, out_w))
+                    arr = np.squeeze(arr)
+                    if np.iscomplexobj(arr):
+                        arr = np.abs(arr)
+                    yield arr.astype(np.float32)
+        else:
+            from PIL import Image
+            for p in train_paths:
+                arr = load_image(p)
+                longest = max(arr.shape)
+                down = max(1, longest // 1024)
+                yield np.array(
+                    Image.fromarray(arr).resize((arr.shape[1] // down, arr.shape[0] // down)),
+                    dtype=np.float32,
+                )
 
-                size_mb = Path(p).stat().st_size / (1024 * 1024)
+    nonlocal_high_quality = [False]
+    logger.info(f"Fitting preprocessor stats on {len(train_paths)} train image(s)...")
+    preprocessor.fit(_iter_fit_images())
 
-                print(f"Checking image quality for {p} (size: {size_mb:.2f} MB)")
-
-                if size_mb > 500:
-                    high_image_quality = True
-            with rasterio.open(p) as src:
-                # Target ~1024px on longest side
-                longest = max(src.height, src.width)
-                scale = max(1, longest // 1024)
-                out_h = max(1, src.height // scale)
-                out_w = max(1, src.width // scale)
-                arr = src.read(1, out_shape=(1, out_h, out_w))
-                arr = np.squeeze(arr)
-                if np.iscomplexobj(arr):
-                    arr = np.abs(arr)
-                arr = arr.astype(np.float32)
-                raw_train.append(arr)
-    else:
-        from PIL import Image
-        for p in train_paths:
-            arr = load_image(p)
-            longest = max(arr.shape)
-            scale = max(1, longest // 1024)
-            small = np.array(Image.fromarray(arr).resize((arr.shape[1]//scale, arr.shape[0]//scale)), dtype=np.float32)
-            raw_train.append(small)
-
-    preprocessor.fit(raw_train)
+    high_image_quality = bool(nonlocal_high_quality[0])
 
     if high_image_quality:
         logger.info("High image quality detected; enabling speckle noise.")
@@ -345,10 +347,19 @@ def build_dataloaders(cfg, seed: int = 42):
 
 
 
+    resolved_batch_size = int(batch_size) if batch_size is not None else int(cfg.train_srcnn.batch_size)
+    resolved_num_workers = int(cfg.data.num_workers)
+    resolved_pin_memory = bool(cfg.data.pin_memory)
+
+    if os.name == "nt" and resolved_num_workers > 0:
+        resolved_num_workers = 0
+        resolved_pin_memory = False
+        logger.info("Windows detected: forcing num_workers=0 for more reliable/fast DataLoader startup.")
+
     loader_kwargs = dict(
-        batch_size=cfg.train_srcnn.batch_size,
-        num_workers=cfg.data.num_workers,
-        pin_memory=cfg.data.pin_memory,
+        batch_size=resolved_batch_size,
+        num_workers=resolved_num_workers,
+        pin_memory=resolved_pin_memory,
     )
 
     

@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader
 from pathlib import Path
 from typing import Optional
 
+import time
 import os
 import sys
 
@@ -30,9 +31,12 @@ def _run_epoch(
     criterion,
     optimizer: Optional[torch.optim.Optimizer],
     device: torch.device,
-    scaler : Optional[torch.cuda.amp.GradScaler] = None,
+    use_amp: bool = False,
+    scaler: Optional[torch.amp.GradScaler] = None,
     train: bool = True,
     grad_clip: float = 1.0,
+    log_every_n_steps: int = 50,
+    phase: str = "train",
 ) -> dict:
     """Run one training or validation epoch."""
     model.train(train)
@@ -41,31 +45,49 @@ def _run_epoch(
     total_ssim = 0.0
     n_batches = 0
 
+    start_t = time.perf_counter()
     ctx = torch.enable_grad() if train else torch.no_grad()
     with ctx:
-        for lr, hr in loader:
+        for step, (lr, hr) in enumerate(loader, start=1):
             lr = lr.to(device, non_blocking=True)
             hr = hr.to(device, non_blocking=True)
 
-            with torch.amp.autocast(enabled=scaler is not None , device_type=device.type):
+            if use_amp and scaler is not None and scaler.is_enabled():
+                with torch.amp.autocast(device_type=device.type):
+                    sr = model(lr)
+                    loss, _ = criterion(sr, hr)
+
+                if train and optimizer is not None:
+                    optimizer.zero_grad()
+                    scaler.scale(loss).backward()
+                    scaler.unscale_(optimizer)
+                    nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+                    scaler.step(optimizer)
+                    scaler.update()
+            else:
                 sr = model(lr)
                 loss, _ = criterion(sr, hr)
 
-            if train and optimizer and scaler:
-                optimizer.zero_grad()
-                scaler.scale(loss).backward()
-
-                scaler.unscale_(optimizer)
-                nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-                
-                scaler.step(optimizer)
-                scaler.update()
+                if train and optimizer is not None:
+                    optimizer.zero_grad()
+                    loss.backward()
+                    nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+                    optimizer.step()
 
             metrics = compute_metrics(sr.clamp(0, 1), hr)
             total_loss += loss.item()
             total_psnr += metrics["psnr"]
             total_ssim += metrics["ssim"]
             n_batches += 1
+            if log_every_n_steps > 0 and step % log_every_n_steps == 0:
+                elapsed = time.perf_counter() - start_t
+                it_s = elapsed / max(step, 1)
+                logger.info(
+                    f"{phase}: step {step}/{len(loader)} | "
+                    f"loss {total_loss / max(n_batches, 1):.5f} | "
+                    f"psnr {total_psnr / max(n_batches, 1):.3f} | "
+                    f"{it_s:.3f}s/it"
+                )
 
     return {
         "loss": total_loss / max(n_batches, 1),
@@ -125,7 +147,8 @@ class RCANTrainer:
             gamma=0.5
         )
 
-        self.scaler = torch.amp.GradScaler()
+        self.use_amp = self.device.type == "cuda"
+        self.scaler = torch.amp.GradScaler(enabled=self.use_amp)
 
         # Data
         self.train_loader = train_loader
@@ -182,12 +205,24 @@ class RCANTrainer:
             # Train
             train_metrics = _run_epoch(
                 self.model, self.train_loader, self.criterion,
-                self.optimizer, self.device, scaler=self.scaler, train=True,
+                self.optimizer,
+                self.device,
+                use_amp=self.use_amp,
+                scaler=self.scaler,
+                train=True,
+                log_every_n_steps=self.train_cfg.get("log_every_n_steps", 50),
+                phase="train",
             )
             # Validate
             val_metrics = _run_epoch(
                 self.model, self.val_loader, self.criterion,
-                None, self.device, scaler=self.scaler, train=False,
+                None,
+                self.device,
+                use_amp=self.use_amp,
+                scaler=self.scaler,
+                train=False,
+                log_every_n_steps=0,
+                phase="val",
             )
 
             self.scheduler.step()

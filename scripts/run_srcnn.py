@@ -50,7 +50,10 @@ def main():
 
     # Build data loaders
     logger.info("Building data loaders...")
-    train_loader, val_loader, test_loader, preprocessor = build_dataloaders(cfg)
+    train_loader, val_loader, test_loader, preprocessor = build_dataloaders(
+        cfg,
+        batch_size=cfg.train_srcnn.batch_size,
+    )
 
     # Train
     trainer = SRCNNTrainer(

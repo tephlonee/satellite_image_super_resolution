@@ -52,7 +52,10 @@ def main():
     cfg = load_config(args.config)
     logger.info(f"Config loaded: {args.config}")
 
-    train_loader, val_loader, test_loader, preprocessor = build_dataloaders(cfg)
+    train_loader, val_loader, test_loader, preprocessor = build_dataloaders(
+        cfg,
+        batch_size=cfg.train_gan.batch_size,
+    )
 
     trainer = GANTrainer(
         cfg=cfg,

@@ -50,7 +50,10 @@ def main():
 
     # Build data loaders
     logger.info("Building data loaders...")
-    train_loader, val_loader, test_loader, preprocessor = build_dataloaders(cfg)
+    train_loader, val_loader, test_loader, preprocessor = build_dataloaders(
+        cfg,
+        batch_size=cfg.train_rcan.batch_size,
+    )
 
     # Train
     trainer = RCANTrainer(
@@ -100,7 +103,7 @@ def main():
     results["test_psnr"] = test_psnr
     results["test_ssim"] = test_ssim
     
-    save_train_info(results, cfg.train_srcnn.train_log_dir)
+    save_train_info(results, cfg.train_rcan.train_log_dir, model_name="rcan")
 
 
 if __name__ == "__main__":
