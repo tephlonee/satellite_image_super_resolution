@@ -61,8 +61,8 @@ gan:
 
 rcan:
   n_channels: 1
-  n_feats: 64
-  n_res_blocks: 8                   # Residual blocks in RCAN
+  n_feats: 48
+  n_res_blocks: 8                  # Residual blocks in RCAN
 
 # --- Training: SRCNN ---
 train_srcnn:

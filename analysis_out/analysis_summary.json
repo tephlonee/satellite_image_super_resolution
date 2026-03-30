@@ -1,0 +1,149 @@
+{
+  "image_dir": "batch_downloads",
+  "n_images": 50,
+  "total_size_gb": 54.57666963059455,
+  "dtype_counts": {
+    "uint16": 25,
+    "complex_int16": 25
+  },
+  "complex_count": 25,
+  "complex_fraction": 0.5,
+  "hr_patch_px": 1024,
+  "stride_px": 32,
+  "top_images_by_patch_positions": [
+    {
+      "name": "CAPELLA_C13_SP_GEO_HH_20251024184825_20251024184838.tif",
+      "eligible_patches_est": 2471928,
+      "height": 49764,
+      "width": 52908
+    },
+    {
+      "name": "CAPELLA_C13_SP_GEO_HH_20251027174510_20251027174523.tif",
+      "eligible_patches_est": 2471928,
+      "height": 49762,
+      "width": 52906
+    },
+    {
+      "name": "CAPELLA_C13_SP_GEO_HH_20251030164154_20251030164207.tif",
+      "eligible_patches_est": 2471928,
+      "height": 49763,
+      "width": 52907
+    },
+    {
+      "name": "CAPELLA_C13_SP_GEO_HH_20251102153839_20251102153851.tif",
+      "eligible_patches_est": 2471928,
+      "height": 49762,
+      "width": 52906
+    },
+    {
+      "name": "CAPELLA_C13_SP_GEO_HH_20251105143522_20251105143535.tif",
+      "eligible_patches_est": 2471928,
+      "height": 49764,
+      "width": 52908
+    },
+    {
+      "name": "CAPELLA_C13_SP_GEO_HH_20251108133205_20251108133218.tif",
+      "eligible_patches_est": 2471928,
+      "height": 49767,
+      "width": 52909
+    },
+    {
+      "name": "CAPELLA_C13_SP_GEO_HH_20251111122850_20251111122903.tif",
+      "eligible_patches_est": 2471928,
+      "height": 49765,
+      "width": 52908
+    },
+    {
+      "name": "CAPELLA_C13_SP_GEO_HH_20251106043113_20251106043125.tif",
+      "eligible_patches_est": 2320000,
+      "height": 47392,
+      "width": 52218
+    },
+    {
+      "name": "CAPELLA_C13_SP_GEO_HH_20251109032756_20251109032808.tif",
+      "eligible_patches_est": 2320000,
+      "height": 47395,
+      "width": 52219
+    },
+    {
+      "name": "CAPELLA_C13_SP_GEO_HH_20251025084417_20251025084429.tif",
+      "eligible_patches_est": 2237536,
+      "height": 46670,
+      "width": 51172
+    }
+  ],
+  "stats_raw_amplitude_samples": {
+    "count": 2500000,
+    "min": 0.0,
+    "max": 19389.0,
+    "mean": 338.09771728515625,
+    "std": 1029.21142578125,
+    "p0": 0.0,
+    "p1": 0.0,
+    "p5": 0.0,
+    "p50": 27.58622932434082,
+    "p95": 1739.0,
+    "p99": 5897.0,
+    "p100": 19389.0
+  },
+  "stats_log_samples": {
+    "count": 2500000,
+    "min": 0.0,
+    "max": 9.511286735534668,
+    "mean": 3.0973892211914062,
+    "std": 2.560133218765259,
+    "p0": 0.0,
+    "p1": 0.0,
+    "p5": 0.0,
+    "p50": 3.740605115890503,
+    "p95": 7.461295700073242,
+    "p99": 8.682254810333252,
+    "p100": 9.511286735534668
+  },
+  "stats_normalized_samples": {
+    "count": 2500000,
+    "min": 0.0,
+    "max": 0.9704694747924805,
+    "mean": 0.30935755372047424,
+    "std": 0.25567907094955444,
+    "p0": 0.0,
+    "p1": 0.0,
+    "p5": 0.0,
+    "p50": 0.3736448436975479,
+    "p95": 0.7451499789953231,
+    "p99": 0.867247112393379,
+    "p100": 0.9704694747924805
+  },
+  "stats_speckle_filtered_samples": {
+    "count": 2500000,
+    "min": 0.0,
+    "max": 16593.83203125,
+    "mean": 338.96954345703125,
+    "std": 1028.1072998046875,
+    "p0": 0.0,
+    "p1": 0.0,
+    "p5": 0.0,
+    "p50": 41.229867935180664,
+    "p95": 1739.9275451660146,
+    "p99": 5903.959199218745,
+    "p100": 16593.83203125
+  },
+  "stats_gradient_magnitude_samples": {
+    "count": 2500000,
+    "min": 0.0,
+    "max": 0.537260115146637,
+    "mean": 0.012151166796684265,
+    "std": 0.020855363458395004,
+    "p0": 0.0,
+    "p1": 0.0,
+    "p5": 0.0,
+    "p50": 0.006286213174462318,
+    "p95": 0.038565772771835316,
+    "p99": 0.06821222856640793,
+    "p100": 0.537260115146637
+  },
+  "notes": {
+    "complex_handling_in_training": "Training loader converts complex arrays to magnitude via np.abs when detected.",
+    "enl_definition": "ENL computed on intensity (amplitude^2) for low-gradient sampled windows; higher ENL indicates smoother homogeneous regions."
+  }
+}
