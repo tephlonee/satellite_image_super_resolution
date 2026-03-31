@@ -530,3 +530,5 @@
 2026-03-26 15:09:59 | INFO     | srcnn_training | Epoch 0030 [VAL]  |  loss: 0.000745  |  psnr: 31.363229  |  ssim: 0.703705
 2026-03-26 15:56:04 | INFO     | srcnn_training | Epoch 0040 [TRAIN]  |  loss: 0.000637  |  psnr: 32.385728  |  ssim: 0.762662
 2026-03-26 15:56:04 | INFO     | srcnn_training | Epoch 0040 [VAL]  |  loss: 0.000869  |  psnr: 30.992324  |  ssim: 0.707848
+2026-03-31 12:06:09 | INFO     | srcnn_training | Epoch 0000 [TRAIN]  |  loss: 0.211213  |  psnr: 25.667468  |  ssim: 0.473471
+2026-03-31 12:06:09 | INFO     | srcnn_training | Epoch 0000 [VAL]  |  loss: 0.001017  |  psnr: 30.075941  |  ssim: 0.618539

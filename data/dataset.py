@@ -44,6 +44,59 @@ except ImportError:
     TIFFFILE_AVAILABLE = False
 
 
+def _border_connected_mask(binary_mask: np.ndarray) -> np.ndarray:
+    h, w = binary_mask.shape
+    visited = np.zeros((h, w), dtype=bool)
+    stack = []
+
+    for x in range(w):
+        if binary_mask[0, x]:
+            stack.append((0, x))
+        if binary_mask[h - 1, x]:
+            stack.append((h - 1, x))
+    for y in range(h):
+        if binary_mask[y, 0]:
+            stack.append((y, 0))
+        if binary_mask[y, w - 1]:
+            stack.append((y, w - 1))
+
+    while stack:
+        y, x = stack.pop()
+        if visited[y, x] or not binary_mask[y, x]:
+            continue
+        visited[y, x] = True
+        y0, y1 = max(0, y - 1), min(h - 1, y + 1)
+        x0, x1 = max(0, x - 1), min(w - 1, x + 1)
+        for yy in range(y0, y1 + 1):
+            for xx in range(x0, x1 + 1):
+                if not visited[yy, xx] and binary_mask[yy, xx]:
+                    stack.append((yy, xx))
+
+    return visited
+
+
+def _fallback_valid_mask(patch: np.ndarray, nodata_value: float = 0.0) -> np.ndarray:
+    p = np.asarray(patch, dtype=np.float32)
+    cand = p <= float(nodata_value)
+    nodata = _border_connected_mask(cand)
+    return ~nodata
+
+
+def _read_tif_window_with_valid_mask(path: str, x: int, y: int, ps: int) -> tuple[np.ndarray, np.ndarray]:
+    with rasterio.open(path) as src:
+        win = rasterio.windows.Window(x, y, ps, ps)
+        arr = src.read(1, window=win)
+        mask = src.read_masks(1, window=win)
+        valid = mask > 0
+        nodata = src.nodata
+        if nodata is not None:
+            valid = valid & (arr != nodata)
+        if np.iscomplexobj(arr):
+            arr = np.abs(arr)
+        hr_patch = np.squeeze(arr).astype(np.float32)
+    return hr_patch, valid
+
+
 # ---------------------------------------------------------------------------
 # Image I/O
 # ---------------------------------------------------------------------------
@@ -163,6 +216,15 @@ class SARDataset(Dataset):
         self.patch_size = cfg.data.patch_size
         self.augment = augment
 
+        data_cfg = cfg.get("data", {})
+        self.filter_nodata_patches = bool(data_cfg.get("filter_nodata_patches", True))
+        self.max_nodata_fraction = float(data_cfg.get("max_nodata_fraction", 0.90))
+        self.max_patch_tries = int(data_cfg.get("max_patch_tries", 25))
+        self.fallback_nodata_value = float(data_cfg.get("fallback_nodata_value", 0.0))
+        self.log_nodata_stats = bool(data_cfg.get("log_nodata_stats", True))
+        self.nodata_log_every = int(data_cfg.get("nodata_log_every", 200))
+        self._nodata_stats = {}
+
         # Preprocessing
         self.preprocessor = preprocessor or SARPreprocessor(cfg.preprocessing)
 
@@ -181,31 +243,121 @@ class SARDataset(Dataset):
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         img_idx = idx % len(self.image_paths)
         path = self.image_paths[img_idx]
+        img_name = Path(path).name
         ext = Path(path).suffix.lower()
-        # Patch size in HR
         ps = self.patch_size * self.scale
+
+        stats = None
+        if self.log_nodata_stats and self.filter_nodata_patches:
+            stats = self._nodata_stats.setdefault(
+                img_name,
+                {
+                    "attempts": 0,
+                    "accepted": 0,
+                    "rejected": 0,
+                    "accepted_invalid_sum": 0.0,
+                    "rejected_invalid_sum": 0.0,
+                },
+            )
+
+        hr_patch = None
+        valid_mask = None
+
         if ext in (".tif", ".tiff") and RASTERIO_AVAILABLE:
             with rasterio.open(path) as src:
-                h, w = src.height, src.width
-                if h < ps or w < ps:
-                    raise ValueError(f"Image {path} too small for patch size {ps}")
-                y = np.random.randint(0, h - ps + 1)
-                x = np.random.randint(0, w - ps + 1)
-                arr = src.read(1, window=rasterio.windows.Window(x, y, ps, ps))
-                if np.iscomplexobj(arr):
-                    arr = np.abs(arr)
-                hr_patch = np.squeeze(arr).astype(np.float32)
+                h, w = int(src.height), int(src.width)
+            if h < ps or w < ps:
+                raise ValueError(f"Image {path} too small for patch size {ps}")
+
+            for _ in range(max(1, self.max_patch_tries)):
+                y = int(np.random.randint(0, h - ps + 1))
+                x = int(np.random.randint(0, w - ps + 1))
+                hr_patch, valid_mask = _read_tif_window_with_valid_mask(path, x=x, y=y, ps=ps)
+
+                frac_invalid = 1.0 - float(np.mean(valid_mask.astype(np.float32)))
+
+                if stats is not None:
+                    stats["attempts"] += 1
+                    #logger.info(f"Accepted patch: {img_name} | frac_invalid {frac_invalid:.3f} first try")
+
+                if not self.filter_nodata_patches:
+                    if stats is not None:
+                        stats["accepted"] += 1
+                        stats["accepted_invalid_sum"] += frac_invalid
+                        #logger.info(f"Accepted patch: {img_name} | frac_invalid {frac_invalid:.3f} fifth try")
+                    break
+
+                if frac_invalid > self.max_nodata_fraction:
+                    if stats is not None:
+                        stats["rejected"] += 1
+                        stats["rejected_invalid_sum"] += frac_invalid
+                        #logger.info(f"Rejected patch: {img_name} | frac_invalid {frac_invalid:.3f} fifth try")
+                    continue
+
+                if stats is not None:
+                    stats["accepted"] += 1
+                    stats["accepted_invalid_sum"] += frac_invalid
+                    if self.nodata_log_every > 0 and (stats["accepted"] % self.nodata_log_every) == 0:
+                        logger.info(
+                            f"nodata-filter: {img_name} | "
+                            f"accepted {stats['accepted']} | rejected {stats['rejected']} | "
+                            f"reject_rate {stats['rejected'] / max(stats['attempts'], 1):.3f} | "
+                            f"avg_invalid(accepted) {stats['accepted_invalid_sum'] / max(stats['accepted'], 1):.3f} | "
+                            f"avg_invalid(rejected) {stats['rejected_invalid_sum'] / max(stats['rejected'], 1):.3f}"
+                        )
+                    #logger.info(f"Accepted patch: {img_name} | frac_invalid {frac_invalid:.3f} second try")
+                
+                break
         else:
             raw = load_image(path)
             h, w = raw.shape
             if h < ps or w < ps:
                 raise ValueError(f"Image {path} too small for patch size {ps}")
-            y = np.random.randint(0, h - ps + 1)
-            x = np.random.randint(0, w - ps + 1)
-            hr_patch = raw[y:y+ps, x:x+ps]
-        # Generate LR patch
-        
-        lr_patch = generate_lr(hr_patch, self.scale , self.patch_size)
+
+            for _ in range(max(1, self.max_patch_tries)):
+                y = int(np.random.randint(0, h - ps + 1))
+                x = int(np.random.randint(0, w - ps + 1))
+                hr_patch = raw[y:y + ps, x:x + ps]
+                valid_mask = np.ones((ps, ps), dtype=bool)
+
+                vm = _fallback_valid_mask(hr_patch, nodata_value=self.fallback_nodata_value)
+                frac_invalid = 1.0 - float(np.mean(vm.astype(np.float32)))
+
+                if stats is not None:
+                    stats["attempts"] += 1
+
+                if not self.filter_nodata_patches:
+                    if stats is not None:
+                        stats["accepted"] += 1
+                        stats["accepted_invalid_sum"] += frac_invalid
+                    logger.info(f"Accepted patch: {img_name} | frac_invalid {frac_invalid:.3f}")
+                    break
+
+                if frac_invalid > self.max_nodata_fraction:
+                    if stats is not None:
+                        stats["rejected"] += 1
+                        stats["rejected_invalid_sum"] += frac_invalid
+                    logger.info(f"Rejected patch: {img_name} | frac_invalid {frac_invalid:.3f}")
+                    continue
+
+                if stats is not None:
+                    stats["accepted"] += 1
+                    stats["accepted_invalid_sum"] += frac_invalid
+                    if self.nodata_log_every > 0 and (stats["accepted"] % self.nodata_log_every) == 0:
+                        logger.info(
+                            f"nodata-filter: {img_name} | "
+                            f"accepted {stats['accepted']} | rejected {stats['rejected']} | "
+                            f"reject_rate {stats['rejected'] / max(stats['attempts'], 1):.3f} | "
+                            f"avg_invalid(accepted) {stats['accepted_invalid_sum'] / max(stats['accepted'], 1):.3f} | "
+                            f"avg_invalid(rejected) {stats['rejected_invalid_sum'] / max(stats['rejected'], 1):.3f}"
+                        )
+                    logger.info(f"Accepted patch: {img_name} | frac_invalid {frac_invalid:.3f} third try")
+
+                else:
+                    logger.info(f"Accepted patch: {img_name} | frac_invalid {frac_invalid:.3f} else block")
+                break
+
+        lr_patch = generate_lr(hr_patch, self.scale, self.patch_size)
         # Preprocess
         hr_patch, log_transformed_hr, normalized_hr = self.preprocessor(hr_patch)
         lr_patch, log_transformed_lr, normalized_lr = self.preprocessor(lr_patch)
