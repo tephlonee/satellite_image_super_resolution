@@ -19,7 +19,7 @@ preprocessing:
   log_transform: true             # Apply log1p transform to reduce speckle dynamic range
   normalize: true                   # Normalize to [0, 1] after log transform
   speckle_filter:
-    enabled: true                  # Toggle speckle filtering
+    enabled: false                  # Toggle speckle filtering
     method: "lee"                   # Options: "lee", "frost", "median"
     kernel_size: 3                  # Filter kernel size (odd number)
     looks: 1                        # Number of looks (for Lee filter)
