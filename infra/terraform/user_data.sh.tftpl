@@ -1,0 +1,176 @@
+#!/bin/bash
+set -euo pipefail
+
+REGION="${region}"
+GITHUB_REPO_URL="${github_repo_url}"
+GITHUB_REF="${github_ref}"
+ARTIFACTS_BUCKET="${artifacts_bucket}"
+RUNS_PREFIX="${runs_prefix}"
+RUN_ID="run-$(date +%Y%m%d-%H%M%S)"
+
+DATA_ROOT="${data_root}"
+DATA_SUBDIR="${data_subdir}"
+DATASET_S3_URI="${dataset_s3_uri}"
+S3_NO_SIGN_REQUEST="${s3_no_sign_request}"
+
+if [ -z "$GITHUB_REPO_URL" ]; then
+  echo "github_repo_url is empty. Set var.github_repo_url." >&2
+  exit 1
+fi
+
+if command -v yum >/dev/null 2>&1; then
+  yum update -y
+  yum install -y awscli git cronie python3 python3-pip
+  python3 -m pip install --upgrade pip
+  systemctl enable crond
+  systemctl start crond
+elif command -v apt-get >/dev/null 2>&1; then
+  apt-get update -y
+  apt-get install -y awscli git cron python3 python3-pip python3-venv
+  python3 -m pip install --upgrade pip
+  systemctl enable cron
+  systemctl start cron
+fi
+
+mkdir -p /opt/sar/checkpoints /opt/sar/logs /opt/sar/results
+
+DEVICE=""
+for d in /dev/xvdf /dev/nvme1n1 /dev/nvme2n1; do
+  if [ -b "$d" ]; then
+    DEVICE="$d"
+    break
+  fi
+done
+
+if [ -z "$DEVICE" ]; then
+  for _ in $(seq 1 60); do
+    for d in /dev/xvdf /dev/nvme1n1 /dev/nvme2n1; do
+      if [ -b "$d" ]; then
+        DEVICE="$d"
+        break
+      fi
+    done
+    if [ -n "$DEVICE" ]; then
+      break
+    fi
+    sleep 2
+  done
+fi
+
+mkdir -p "$DATA_ROOT"
+
+if [ -n "$DEVICE" ]; then
+  if ! blkid "$DEVICE" >/dev/null 2>&1; then
+    mkfs.ext4 -F "$DEVICE"
+  fi
+
+  UUID=$(blkid -s UUID -o value "$DEVICE")
+  if ! grep -q "$UUID" /etc/fstab; then
+    echo "UUID=$UUID $DATA_ROOT ext4 defaults,nofail 0 2" >> /etc/fstab
+  fi
+  mount -a
+fi
+
+DATA_DIR="$DATA_ROOT/$DATA_SUBDIR"
+mkdir -p "$DATA_DIR"
+
+cat >/etc/profile.d/sar_sr_env.sh <<EOF
+export SAR_SR_EC2=1
+export SAR_SR_DATA_ROOT="$DATA_ROOT"
+export SAR_SR_S3_URI="$DATASET_S3_URI"
+export SAR_SR_S3_NO_SIGN_REQUEST="$S3_NO_SIGN_REQUEST"
+EOF
+
+if [ -n "$DATASET_S3_URI" ]; then
+  HAS_TIF=$(find "$DATA_DIR" -maxdepth 1 -type f -name '*.tif' ! -name '*preview*' 2>/dev/null | head -n 1 || true)
+  if [ -z "$HAS_TIF" ]; then
+    SYNC_ARGS=("--only-show-errors")
+    if [ "$S3_NO_SIGN_REQUEST" = "1" ]; then
+      SYNC_ARGS+=("--no-sign-request")
+    fi
+    aws s3 sync "$DATASET_S3_URI" "$DATA_DIR" "$${SYNC_ARGS[@]}"
+  fi
+fi
+
+CODE_DIR="/opt/sar/code"
+if [ -d "$CODE_DIR/.git" ]; then
+  cd "$CODE_DIR"
+  git fetch --all --tags
+  git checkout "$GITHUB_REF" || true
+  git pull --ff-only || true
+else
+  rm -rf "$CODE_DIR"
+  git clone "$GITHUB_REPO_URL" "$CODE_DIR"
+  cd "$CODE_DIR"
+  git checkout "$GITHUB_REF" || true
+fi
+
+ln -sfn /opt/sar/checkpoints "$CODE_DIR/checkpoints"
+ln -sfn /opt/sar/logs "$CODE_DIR/logs"
+ln -sfn /opt/sar/results "$CODE_DIR/results"
+
+VENV_DIR="/opt/sar/venv"
+if [ ! -d "$VENV_DIR" ]; then
+  python3 -m venv "$VENV_DIR"
+fi
+source "$VENV_DIR/bin/activate"
+pip install -r "$CODE_DIR/requirements.txt"
+
+cat >/usr/local/bin/run-srcnn.sh <<'RUNSRCNN'
+#!/bin/bash
+set -euo pipefail
+source /etc/profile.d/sar_sr_env.sh || true
+source /opt/sar/venv/bin/activate
+cd /opt/sar/code
+if [ -f checkpoints/srcnn/latest.pth ]; then
+  python scripts/run_srcnn.py --config configs/config.yaml --resume checkpoints/srcnn/latest.pth
+else
+  python scripts/run_srcnn.py --config configs/config.yaml
+fi
+RUNSRCNN
+chmod +x /usr/local/bin/run-srcnn.sh
+
+cat >/usr/local/bin/run-rcan.sh <<'RUNRCAN'
+#!/bin/bash
+set -euo pipefail
+source /etc/profile.d/sar_sr_env.sh || true
+source /opt/sar/venv/bin/activate
+cd /opt/sar/code
+if [ -f checkpoints/rcan/latest.pth ]; then
+  python scripts/run_rcan.py --config configs/config.yaml --resume checkpoints/rcan/latest.pth
+else
+  python scripts/run_rcan.py --config configs/config.yaml
+fi
+RUNRCAN
+chmod +x /usr/local/bin/run-rcan.sh
+
+cat >/usr/local/bin/s3-sync.sh <<SYNC
+#!/bin/bash
+set -euo pipefail
+RUN_ID_FILE="/opt/sar/.run_id"
+if [ ! -f "\$RUN_ID_FILE" ]; then echo "$RUN_ID" > "\$RUN_ID_FILE"; fi
+RID=\$(cat "\$RUN_ID_FILE")
+aws s3 sync /opt/sar/checkpoints "s3://$ARTIFACTS_BUCKET/$RUNS_PREFIX/\$RID/checkpoints" --only-show-errors || true
+aws s3 sync /opt/sar/logs        "s3://$ARTIFACTS_BUCKET/$RUNS_PREFIX/\$RID/logs"        --only-show-errors || true
+aws s3 sync /opt/sar/results     "s3://$ARTIFACTS_BUCKET/$RUNS_PREFIX/\$RID/results"     --only-show-errors || true
+SYNC
+chmod +x /usr/local/bin/s3-sync.sh
+
+if command -v crontab >/dev/null 2>&1; then
+  (crontab -l 2>/dev/null; echo "* * * * * /usr/local/bin/s3-sync.sh >/var/log/s3sync.log 2>&1") | crontab -
+fi
+
+cat >/usr/local/bin/spot-watch.sh <<'SPOT'
+#!/bin/bash
+set -euo pipefail
+while true; do
+  if curl -sf http://169.254.169.254/latest/meta-data/spot/instance-action >/dev/null; then
+    pkill -f "python scripts/run_" || true
+    /usr/local/bin/s3-sync.sh || true
+    exit 0
+  fi
+  sleep 5
+done
+SPOT
+chmod +x /usr/local/bin/spot-watch.sh
+nohup /usr/local/bin/spot-watch.sh >/var/log/spotwatch.log 2>&1 &

@@ -3,3 +3,6 @@ env/
 __pycache__/
 results/    
 PROJECT_REPORT_REQUIREMENTS
+report/
+project.txt
+.terraform/
