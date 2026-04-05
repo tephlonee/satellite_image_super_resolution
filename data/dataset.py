@@ -14,6 +14,9 @@ For GeoTIFF with multiple bands, only the first band is used.
 
 import os
 import random
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 from typing import List, Optional, Tuple
 from functools import partial
@@ -432,13 +435,136 @@ def worker_init_fn(wid , seed):
     np.random.seed(seed + wid)
 
 
+def _truthy_env(name: str) -> bool:
+    v = os.getenv(name)
+    if v is None:
+        return False
+    return v.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _resolve_image_dir(cfg) -> str:
+    forced_dir = os.getenv("SAR_SR_DATA_DIR")
+    if forced_dir:
+        return str(forced_dir)
+
+    image_dir_cfg = ""
+    try:
+        image_dir_cfg = cfg.data.get("image_dir", "") if hasattr(cfg, "data") else ""
+    except Exception:
+        try:
+            image_dir_cfg = str(cfg.data.image_dir)
+        except Exception:
+            image_dir_cfg = ""
+
+    image_dir = str(image_dir_cfg).strip() if image_dir_cfg is not None else ""
+    if image_dir == "":
+        image_dir = "batch_downloads"
+
+    data_root = os.getenv("SAR_SR_DATA_ROOT")
+
+    if not data_root:
+        return image_dir
+
+    data_root_path = Path(data_root)
+
+    if _truthy_env("SAR_SR_EC2"):
+        if os.path.isabs(image_dir):
+            try:
+                if Path(image_dir).resolve().is_relative_to(data_root_path.resolve()):
+                    return image_dir
+            except Exception:
+                pass
+            return str(data_root_path / Path(image_dir).name)
+
+        return str(data_root_path / image_dir)
+
+    if not os.path.isabs(image_dir):
+        return str(data_root_path / image_dir)
+
+    return image_dir
+
+
+def _has_valid_tifs(image_dir: str) -> bool:
+    p = Path(image_dir)
+    if not p.exists() or not p.is_dir():
+        return False
+    for x in p.iterdir():
+        if x.is_file() and x.suffix.lower() == ".tif" and "preview" not in x.stem:
+            return True
+    return False
+
+
+def _sync_s3_to_dir(s3_uri: str, image_dir: str) -> None:
+    Path(image_dir).mkdir(parents=True, exist_ok=True)
+    aws = shutil.which("aws")
+    if not aws:
+        raise RuntimeError(
+            "AWS CLI not found. Install awscli on the machine or pre-download the dataset locally."
+        )
+
+    cmd = [aws, "s3", "sync", s3_uri, image_dir, "--only-show-errors"]
+    if _truthy_env("SAR_SR_S3_NO_SIGN_REQUEST"):
+        cmd.append("--no-sign-request")
+
+    logger.info(f"Syncing dataset from S3: {s3_uri} -> {image_dir}")
+    subprocess.run(cmd, check=True)
+
+
+def _fetch_capella_to_dir(image_dir: str, cfg) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+
+    max_items = None
+    cutoff = None
+    assets = None
+    collection_url = None
+    try:
+        max_items = cfg.data.get("capella_max_items", None)
+        cutoff = cfg.data.get("capella_cutoff", None)
+        assets = cfg.data.get("capella_assets", None)
+        collection_url = cfg.data.get("capella_collection_url", None)
+    except Exception:
+        pass
+
+    max_items = os.getenv("SAR_SR_CAPELLA_MAX_ITEMS", str(max_items) if max_items is not None else "").strip()
+    cutoff = os.getenv("SAR_SR_CAPELLA_CUTOFF", str(cutoff) if cutoff is not None else "").strip()
+    assets = os.getenv("SAR_SR_CAPELLA_ASSETS", ",".join(assets) if isinstance(assets, (list, tuple)) else (str(assets) if assets is not None else "")).strip()
+    collection_url = os.getenv("SAR_SR_CAPELLA_COLLECTION_URL", str(collection_url) if collection_url is not None else "").strip()
+
+    cmd = [sys.executable, "-m", "data.fetch_data", "--output-dir", image_dir]
+    if max_items:
+        cmd += ["--max-items", max_items]
+    if cutoff:
+        cmd += ["--cutoff", cutoff]
+    if collection_url:
+        cmd += ["--collection-url", collection_url]
+    if assets:
+        cmd += ["--assets", assets]
+
+    logger.info(f"Fetching Capella open data into: {image_dir}")
+    subprocess.run(cmd, check=True, cwd=str(repo_root))
+
+
 def build_dataloaders(cfg, seed: int = 42, batch_size: Optional[int] = None):
     """
     Build train, val, and test DataLoader objects from config.
     Uses downsampled proxies for preprocessor.fit to avoid OOM.
     """
+    image_dir = _resolve_image_dir(cfg)
+    if _truthy_env("SAR_SR_EC2") and not _has_valid_tifs(image_dir):
+        s3_uri = None
+        try:
+            s3_uri = cfg.data.get("s3_uri", None)
+        except Exception:
+            s3_uri = None
+        s3_uri = s3_uri or os.getenv("SAR_SR_S3_URI")
+
+        if s3_uri:
+            _sync_s3_to_dir(str(s3_uri), image_dir)
+        else:
+            _fetch_capella_to_dir(image_dir, cfg)
+
     train_paths, val_paths, test_paths = split_image_paths(
-        image_dir=cfg.data.image_dir,
+        image_dir=image_dir,
         train_ratio=cfg.data.train_ratio,
         val_ratio=cfg.data.val_ratio,
         seed=seed,
